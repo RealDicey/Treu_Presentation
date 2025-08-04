@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treu Systems Analytics Reporting Presentation</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+    <style>
+        /* Custom styles for the presentation */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        .presentation-container {
+            background-color: #ffffff;
+            border-radius: 1.5rem; /* More rounded corners */
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 900px;
+            width: 95%; /* Responsive width */
+            min-height: 600px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 2.5rem; /* Increased padding */
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0; /* Subtle border */
+        }
+        .slide-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 1rem;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .slide-content h1 {
+            font-size: 2.5rem; /* Larger title */
+            font-weight: 700;
+            color: #1a202c; /* Darker text */
+            margin-bottom: 1.5rem;
+        }
+        .slide-content p, .slide-content ul {
+            font-size: 1.25rem; /* Larger body text */
+            color: #4a5568; /* Medium-dark text */
+            line-height: 1.8; /* More spacing */
+            max-width: 700px;
+        }
+        .slide-content ul {
+            list-style: none; /* Remove default bullet points */
+            padding: 0;
+            margin-top: 1rem;
+        }
+        .slide-content ul li {
+            margin-bottom: 0.75rem;
+            position: relative;
+            padding-left: 1.75rem; /* Space for custom bullet */
+            text-align: left;
+        }
+        .slide-content ul li::before {
+            content: '•'; /* Custom bullet point */
+            color: #2563eb; /* Blue bullet, matching theme */
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1.75rem;
+            position: absolute;
+            left: 0;
+        }
+        .navigation-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 2rem;
+            width: 100%;
+        }
+        .nav-button, .autoplay-button {
+            background-color: #2563eb; /* Blue button, matching theme */
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 0.75rem; /* Rounded buttons */
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer; /* Ensure cursor is pointer */
+        }
+        .nav-button:hover:not(:disabled), .autoplay-button:hover:not(:disabled) {
+            background-color: #1d4ed8; /* Darker blue on hover */
+            transform: translateY(-2px);
+        }
+        .nav-button:disabled, .autoplay-button:disabled {
+            background-color: #a0aec0; /* Gray when disabled */
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .autoplay-button.active {
+            background-color: #dc2626; /* Red when active */
+        }
+        .autoplay-button.active:hover {
+            background-color: #b91c1c; /* Darker red on hover when active */
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 1.5rem;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #2563eb; /* Spinner color matching theme */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
+        .start-button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+        }
+        .start-button {
+            background-color: #28a745; /* Green button */
+            color: white;
+            padding: 1rem 3rem;
+            border-radius: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+        .start-button:hover {
+            background-color: #218838; /* Darker green on hover */
+            transform: translateY(-3px);
+        }
+        .chart-container {
+            width: 100%;
+            height: 300px; /* Adjust height as needed for charts */
+            margin-top: 1.5rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .chart-container canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .presentation-container {
+                padding: 1.5rem;
+                min-height: 500px;
+            }
+            .slide-content h1 {
+                font-size: 2rem;
+            }
+            .slide-content p, .slide-content ul {
+                font-size: 1rem;
+            }
+            .nav-button, .autoplay-button {
+                padding: 0.6rem 1.5rem;
+                font-size: 0.9rem;
+            }
+            .start-button {
+                padding: 0.8rem 2rem;
+                font-size: 1.2rem;
+            }
+            .chart-container {
+                height: 250px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .presentation-container {
+                padding: 1rem;
+                min-height: 400px;
+            }
+            .slide-content h1 {
+                font-size: 1.75rem;
+            }
+            .slide-content p, .slide-content ul {
+                font-size: 0.9rem;
+            }
+            .navigation-controls {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .nav-button, .autoplay-button {
+                width: 100%;
+            }
+            .chart-container {
+                height: 200px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="presentation-container">
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+        </div>
+
+        <div id="startButtonContainer" class="start-button-container">
+            <button id="startButton" class="start-button">Start Presentation</button>
+        </div>
+
+        <div id="presentationContent" class="hidden">
+            <div id="slideContent" class="slide-content">
+                <!-- Slide content will be loaded here by JavaScript -->
+            </div>
+
+            <div class="navigation-controls">
+                <button id="prevButton" class="nav-button" disabled>Previous</button>
+                <button id="autoplayButton" class="autoplay-button">Auto Play</button>
+                <button id="nextButton" class="nav-button">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase imports (for potential future use, e.g., user authentication or data storage)
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+        let userId; // To store the authenticated user's ID
+        let hasUserInteracted = false; // Flag to track user interaction for audio playback
+
+        // Initialize Firebase and authenticate
+        async function initializeFirebase() {
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                console.log("Firebase initialized. User ID:", userId);
+            } catch (error) {
+                console.error("Error initializing Firebase or authenticating:", error);
+                // Handle error gracefully, e.g., display a message to the user
+            }
+        }
+
+        // --- Chart Configurations (from your provided HTML) ---
+        const chartConfigs = {
+            overviewChart: {
+                type: 'bar',
+                data: {
+                    labels: ['Automation', 'Accuracy', 'Speed', 'Insight'],
+                    datasets: [{
+                        label: 'Performance Metrics',
+                        data: [80, 90, 75, 85],
+                        backgroundColor: '#2563eb'
+                    }]
+                }
+            },
+            missionChart: {
+                type: 'doughnut',
+                data: {
+                    labels: ['Automation', 'Insight', 'Integration', 'Scalability'],
+                    datasets: [{
+                        data: [30, 25, 20, 25],
+                        backgroundColor: ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd']
+                    }]
+                }
+            },
+            howChart: {
+                type: 'radar',
+                data: {
+                    labels: ['Discovery', 'Build', 'Testing', 'Deployment', 'Reporting'],
+                    datasets: [{
+                        label: 'Workflow Efficiency',
+                        data: [65, 80, 70, 85, 90],
+                        backgroundColor: 'rgba(37, 99, 235, 0.2)',
+                        borderColor: '#2563eb'
+                    }]
+                }
+            },
+            whyChart: {
+                type: 'polarArea',
+                data: {
+                    labels: ['Tech Expertise', 'Integration', 'Insights', 'Cost-Efficiency'],
+                    datasets: [{
+                        data: [90, 85, 95, 80],
+                        backgroundColor: ['#60a5fa', '#3b82f6', '#2563eb', '#1e40af']
+                    }]
+                }
+            },
+            whoChart: {
+                type: 'pie',
+                data: {
+                    labels: ['Startups', 'Services', 'E-commerce', 'Retail', 'Nonprofits'],
+                    datasets: [{
+                        data: [20, 25, 20, 15, 20],
+                        backgroundColor: ['#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1e3a8a']
+                    }]
+                }
+            },
+            teamChart: {
+                type: 'bubble',
+                data: {
+                    datasets: [{
+                        label: 'Team Skills',
+                        data: [
+                            {x: 10, y: 20, r: 10},
+                            {x: 15, y: 10, r: 15},
+                            {x: 25, y: 30, r: 20}
+                        ],
+                        backgroundColor: '#2563eb'
+                    }]
+                }
+            },
+            financeChart: {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Revenue ($)',
+                        data: [10000, 12000, 15000, 13000, 17000, 19000],
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: true } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            }
+        };
+
+        // --- Presentation Data (extracted from your HTML tabs) ---
+        const presentationSlides = [
+            {
+                title: "About Treu Systems",
+                content: "Financial Automation for Small and Mid-Sized Businesses. Welcome to our presentation.",
+                chartId: null // No chart on this introductory slide
+            },
+            {
+                title: "Overview",
+                content: "At Treu Systems, we help businesses take control of their financial data through seamless automation and real-time reporting powered by Python, MySQL, and QuickBooks.",
+                chartId: 'overviewChart'
+            },
+            {
+                title: "Our Mission",
+                content: "We simplify financial operations for growing businesses. Our mission is to automate what slows you down and illuminate what moves you forward.",
+                chartId: 'missionChart'
+            },
+            {
+                title: "How We Work",
+                content: [
+                    "First, Discovery and Audit: We assess your current tools and processes.",
+                    "Second, Design and Build: We create custom pipelines using Python, MySQL, and QuickBooks integration.",
+                    "Third, Testing and Deployment: Secure, compliant solutions are rolled out with care.",
+                    "Finally, Real-Time Reporting: We provide dashboards and alerts for always-on insight."
+                ],
+                chartId: 'howChart'
+            },
+            {
+                title: "Why Us",
+                content: [
+                    "Tech-First Expertise: Deep engineering meets practical finance.",
+                    "Seamless Integration: Connect your entire financial ecosystem.",
+                    "Real-Time Intelligence: Get instant insights, anytime, anywhere.",
+                    "Built for businesses: Our solutions are scalable, cost-effective, and easy to adopt."
+                ],
+                chartId: 'whyChart'
+            },
+            {
+                title: "Who We Serve",
+                content: [
+                    "We serve Startups, providing investor-ready reporting.",
+                    "Professional Services, from time tracking to invoicing.",
+                    "E-commerce businesses, syncing sales, inventory, and taxes.",
+                    "Retail and Hospitality, with POS integrations and profit and loss statements.",
+                    "And Nonprofits, for grant and donation tracking."
+                ],
+                chartId: 'whoChart'
+            },
+            {
+                title: "Team",
+                content: "Treu Systems is driven by a team of engineers passionate about automation, data systems, and financial technology. We bring a collaborative and hands-on approach to every implementation, ensuring systems are reliable, scalable, and tuned for real business needs.",
+                chartId: 'teamChart'
+            },
+            {
+                title: "Dashboard",
+                content: "This is a sample of our live financial dashboard, providing real-time insights into your business's financial performance.",
+                chartId: 'financeChart'
+            },
+            {
+                title: "Contact Treu Systems",
+                content: "For more information, visit our website at www.treusystems.com, email us at info@treusystems.com, or call us at 1-800-TREU-SYS. Thank you for your time. This presentation is copyright 2025 Treu Systems. All rights reserved.",
+                chartId: null // No chart on the contact slide
+            }
+        ];
+
+        let currentSlideIndex = 0;
+        const audioCache = new Map(); // Cache for generated audio URLs
+        const defaultSlideDuration = 8000; // Default duration for slides without audio, in milliseconds
+
+        const startButtonContainer = document.getElementById('startButtonContainer');
+        const startButton = document.getElementById('startButton');
+        const presentationContent = document.getElementById('presentationContent');
+        const slideContentDiv = document.getElementById('slideContent');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+        const autoplayButton = document.getElementById('autoplayButton');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        let currentAudio = null; // To keep track of the currently playing audio
+        let currentChartInstance = null; // To store the Chart.js instance
+        let slideTimer = null; // Timer for auto-advancing slides
+        let isAutoPlaying = false; // State for auto-play functionality
+
+        /**
+         * Converts base64 encoded audio data (PCM) into a WAV Blob.
+         * The API returns signed PCM 16-bit audio data.
+         * @param {string} base64Data - Base64 encoded audio data.
+         * @param {number} sampleRate - The sample rate of the audio.
+         * @returns {Blob} - A Blob containing the WAV audio.
+         */
+        function pcmToWav(base64Data, sampleRate) {
+            const pcmData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+            const pcm16 = new Int16Array(pcmData.buffer); // API returns signed PCM16
+
+            const numChannels = 1; // Assuming mono audio from TTS API
+            const sampleBits = 16;
+            const byteRate = sampleRate * numChannels * (sampleBits / 8);
+            const blockAlign = numChannels * (sampleBits / 8);
+
+            const wavBuffer = new ArrayBuffer(44 + pcmData.length);
+            const view = new DataView(wavBuffer);
+
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcmData.length, true); // ChunkSize
+            writeString(view, 8, 'WAVE');
+
+            // FMT sub-chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+            view.setUint16(20, 1, true);  // AudioFormat (1 for PCM)
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, sampleBits, true);
+
+            // DATA sub-chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcmData.length, true); // Subchunk2Size
+
+            // Write PCM data
+            for (let i = 0; i < pcmData.length; i++) {
+                view.setUint8(44 + i, pcmData[i]);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        /**
+         * Helper function to write a string to DataView.
+         * @param {DataView} view - The DataView object.
+         * @param {number} offset - The offset to write at.
+         * @param {string} string - The string to write.
+         */
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        /**
+         * Advances to the next slide if auto-play is enabled and it's not the last slide.
+         */
+        function autoAdvance() {
+            if (isAutoPlaying && currentSlideIndex < presentationSlides.length - 1) {
+                displaySlide(currentSlideIndex + 1);
+            } else if (isAutoPlaying && currentSlideIndex === presentationSlides.length - 1) {
+                // Stop auto-play if it reaches the end of the presentation
+                toggleAutoPlay();
+            }
+        }
+
+        /**
+         * Clears any existing auto-advance timer.
+         */
+        function clearAutoAdvanceTimer() {
+            if (slideTimer) {
+                clearTimeout(slideTimer);
+                slideTimer = null;
+            }
+        }
+
+        /**
+         * Sets the auto-advance timer.
+         * @param {number} delay - The delay in milliseconds before advancing.
+         */
+        function setAutoAdvanceTimer(delay) {
+            clearAutoAdvanceTimer(); // Clear any previous timer
+            if (isAutoPlaying) {
+                slideTimer = setTimeout(autoAdvance, delay);
+            }
+        }
+
+        /**
+         * Toggles the auto-play functionality.
+         */
+        function toggleAutoPlay() {
+            isAutoPlaying = !isAutoPlaying;
+            autoplayButton.classList.toggle('active', isAutoPlaying);
+            autoplayButton.textContent = isAutoPlaying ? 'Pause Auto Play' : 'Auto Play';
+
+            if (isAutoPlaying) {
+                // Start auto-play from the current slide, which will trigger audio/timer
+                displaySlide(currentSlideIndex);
+            } else {
+                clearAutoAdvanceTimer();
+            }
+        }
+
+        /**
+         * Displays the current slide content.
+         * @param {number} index - The index of the slide to display.
+         */
+        async function displaySlide(index) {
+            if (index < 0 || index >= presentationSlides.length) {
+                console.error("Invalid slide index:", index);
+                return;
+            }
+
+            // Stop any currently playing audio
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+
+            // Clear auto-advance timer immediately on manual navigation or new slide display
+            clearAutoAdvanceTimer();
+
+            // Destroy previous chart instance if it exists
+            if (currentChartInstance) {
+                currentChartInstance.destroy();
+                currentChartInstance = null;
+            }
+
+            currentSlideIndex = index;
+            const slide = presentationSlides[currentSlideIndex];
+
+            // Update slide content
+            slideContentDiv.innerHTML = ''; // Clear previous content
+
+            const titleElement = document.createElement('h1');
+            titleElement.textContent = slide.title;
+            slideContentDiv.appendChild(titleElement);
+
+            if (Array.isArray(slide.content)) {
+                const ulElement = document.createElement('ul');
+                slide.content.forEach(item => {
+                    const liElement = document.createElement('li');
+                    liElement.textContent = item;
+                    ulElement.appendChild(liElement);
+                });
+                slideContentDiv.appendChild(ulElement);
+            } else if (slide.content) {
+                const pElement = document.createElement('p');
+                pElement.textContent = slide.content;
+                slideContentDiv.appendChild(pElement);
+            }
+
+            // Handle charts
+            if (slide.chartId && chartConfigs[slide.chartId]) {
+                const chartContainer = document.createElement('div');
+                chartContainer.className = 'chart-container';
+                const canvasElement = document.createElement('canvas');
+                canvasElement.id = slide.chartId; // Assign the original ID for consistency
+                chartContainer.appendChild(canvasElement);
+                slideContentDiv.appendChild(chartContainer);
+
+                const ctx = canvasElement.getContext('2d');
+                currentChartInstance = new Chart(ctx, chartConfigs[slide.chartId]);
+            }
+
+            // Update navigation button states
+            prevButton.disabled = currentSlideIndex === 0;
+            nextButton.disabled = currentSlideIndex === presentationSlides.length - 1;
+
+            // Only play audio and set auto-advance timer if user has interacted
+            if (hasUserInteracted) {
+                const audioDuration = await playSlideAudio(slide);
+                if (isAutoPlaying) {
+                    // Set timer based on audio duration, or default if no audio/failed
+                    setAutoAdvanceTimer(audioDuration > 0 ? audioDuration * 1000 : defaultSlideDuration);
+                }
+            }
+        }
+
+        /**
+         * Generates and plays audio for a given slide.
+         * @returns {Promise<number>} - Resolves with audio duration in seconds, or 0 if no audio.
+         */
+        async function playSlideAudio(slide) {
+            const slideText = `${slide.title}. ${Array.isArray(slide.content) ? slide.content.join('. ') : slide.content || ''}`;
+            let audioUrl = null;
+            let audioDuration = 0; // Default to 0
+
+            if (audioCache.has(slideText)) {
+                audioUrl = audioCache.get(slideText);
+            } else {
+                showLoading();
+                const maxRetries = 5;
+                let retryCount = 0;
+
+                while (retryCount < maxRetries) {
+                    try {
+                        const payload = {
+                            contents: [{
+                                parts: [{ text: slideText }]
+                            }],
+                            generationConfig: {
+                                responseModalities: ["AUDIO"],
+                                speechConfig: {
+                                    voiceConfig: {
+                                        prebuiltVoiceConfig: { voiceName: "Kore" }
+                                    }
+                                }
+                            },
+                            model: "gemini-2.5-flash-preview-tts"
+                        };
+                        const apiKey = ""; // Leave as-is, Canvas will provide it
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            if (response.status === 429) { // Too Many Requests
+                                const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+                                console.warn(`Rate limit hit. Retrying in ${delay / 1000} seconds...`);
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                                retryCount++;
+                                continue; // Retry the request
+                            }
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        const part = result?.candidates?.[0]?.content?.parts?.[0];
+                        const audioData = part?.inlineData?.data;
+                        const mimeType = part?.inlineData?.mimeType;
+
+                        if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
+                            // Extract sample rate from mimeType, e.g., "audio/L16;rate=16000"
+                            const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000; // Default to 16kHz if not found
+
+                            const wavBlob = pcmToWav(audioData, sampleRate);
+                            audioUrl = URL.createObjectURL(wavBlob);
+                            audioCache.set(slideText, audioUrl); // Cache the URL
+                            break; // Success, exit loop
+                        } else {
+                            console.error("Invalid audio data or mime type received:", result);
+                            throw new Error("Failed to receive valid audio data.");
+                        }
+                    } catch (error) {
+                        console.error("Error generating audio:", error);
+                        if (retryCount < maxRetries - 1) {
+                            const delay = Math.pow(2, retryCount) * 1000;
+                            console.warn(`Attempt ${retryCount + 1} failed. Retrying in ${delay / 1000} seconds...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            retryCount++;
+                        } else {
+                            console.error("Max retries reached. Could not generate audio.");
+                            break; // Exit loop after max retries
+                        }
+                    }
+                }
+                hideLoading();
+            }
+
+            if (audioUrl) {
+                currentAudio = new Audio(audioUrl);
+                // When audio ends, trigger auto-advance if autoplay is active
+                currentAudio.onended = () => {
+                    if (isAutoPlaying) {
+                        autoAdvance();
+                    }
+                };
+                try {
+                    await currentAudio.play();
+                    audioDuration = currentAudio.duration; // Get actual duration after play
+                } catch (e) {
+                    console.error("Audio playback failed:", e);
+                    audioDuration = 0; // Indicate audio failed to play
+                }
+            } else {
+                console.warn("Audio could not be generated for this slide.");
+                audioDuration = 0; // Indicate no audio
+            }
+            return audioDuration; // Return the duration for the timer
+        }
+
+        function showLoading() {
+            loadingOverlay.classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            loadingOverlay.classList.add('hidden');
+        }
+
+        // --- Event Listeners ---
+        prevButton.addEventListener('click', () => {
+            clearAutoAdvanceTimer(); // Clear timer on manual navigation
+            if (currentSlideIndex > 0) {
+                displaySlide(currentSlideIndex - 1);
+            }
+        });
+
+        nextButton.addEventListener('click', () => {
+            clearAutoAdvanceTimer(); // Clear timer on manual navigation
+            if (currentSlideIndex < presentationSlides.length - 1) {
+                displaySlide(currentSlideIndex + 1);
+            }
+        });
+
+        autoplayButton.addEventListener('click', toggleAutoPlay);
+
+        startButton.addEventListener('click', () => {
+            hasUserInteracted = true;
+            startButtonContainer.classList.add('hidden');
+            presentationContent.classList.remove('hidden');
+            // Start auto-play by default after user clicks "Start Presentation"
+            isAutoPlaying = true;
+            autoplayButton.classList.add('active');
+            autoplayButton.textContent = 'Pause Auto Play';
+            displaySlide(currentSlideIndex); // Display the first slide and play audio
+        });
+
+        // --- Initialize on load ---
+        window.onload = async function() {
+            await initializeFirebase(); // Initialize Firebase first
+            // Initial state: show start button, hide presentation content
+            startButtonContainer.classList.remove('hidden');
+            presentationContent.classList.add('hidden');
+        };
+    </script>
+</body>
+</html>
