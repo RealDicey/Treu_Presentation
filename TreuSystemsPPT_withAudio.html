@@ -253,7 +253,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global variables provided by the Canvas environment
+        // Global variables provided by the Canvas environment (may be undefined)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -262,23 +262,29 @@
         let userId; // To store the authenticated user's ID
         let hasUserInteracted = false; // Flag to track user interaction for audio playback
 
-        // Initialize Firebase and authenticate
+        // Initialize Firebase and authenticate (best-effort — fails gracefully if not configured)
         async function initializeFirebase() {
             try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
+                if (Object.keys(firebaseConfig).length > 0) {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
 
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    userId = auth.currentUser?.uid || crypto.randomUUID();
+                    console.log("Firebase initialized. User ID:", userId);
                 } else {
-                    await signInAnonymously(auth);
+                    console.log("No Firebase config provided — skipping initialization.");
+                    userId = crypto.randomUUID();
                 }
-                userId = auth.currentUser?.uid || crypto.randomUUID();
-                console.log("Firebase initialized. User ID:", userId);
             } catch (error) {
                 console.error("Error initializing Firebase or authenticating:", error);
-                // Handle error gracefully, e.g., display a message to the user
+                userId = userId || crypto.randomUUID();
+                // Continue without blocking the presentation
             }
         }
 
@@ -372,7 +378,7 @@
             }
         };
 
-        // --- Presentation Data (extracted from your HTML tabs) ---
+        // --- Presentation Data (fixed truncations) ---
         const presentationSlides = [
             {
                 title: "About Treu Systems",
@@ -405,7 +411,7 @@
                     "Tech-First Expertise: Deep engineering meets practical finance.",
                     "Seamless Integration: Connect your entire financial ecosystem.",
                     "Real-Time Intelligence: Get instant insights, anytime, anywhere.",
-                    "Built for businesses: Our solutions are scalable, cost-effective, and easy to adopt."
+                    "Built for business: Our solutions are scalable, cost-effective, and easy to adopt."
                 ],
                 chartId: 'whyChart'
             },
@@ -422,17 +428,17 @@
             },
             {
                 title: "Team",
-                content: "Treu Systems is driven by a team of engineers passionate about automation, data systems, and financial technology. We bring a collaborative and hands-on approach to every implementation, ensuring systems are reliable, scalable, and tuned for real business needs.",
+                content: "Treu Systems is driven by a cross-functional team of engineers, data analysts, and finance specialists passionate about automation, data systems, and financial technology. We bring a collaborative, hands-on approach to every implementation — from discovery through deployment and ongoing support.",
                 chartId: 'teamChart'
             },
             {
                 title: "Dashboard",
-                content: "This is a sample of our live financial dashboard, providing real-time insights into your business's financial performance.",
+                content: "This is a sample of our live financial dashboard, providing real-time insights into your business's financial performance, including revenue trends, cashflow, and key KPIs.",
                 chartId: 'financeChart'
             },
             {
                 title: "Contact Treu Systems",
-                content: "For more information, visit our website at www.treusystems.com, email us at info@treusystems.com, or call us at 1-800-TREU-SYS. Thank you for your time. This presentation is copyright 2025 Treu Systems. All rights reserved.",
+                content: "For more information, visit our website at www.treusystems.com, email us at info@treusystems.com, or call us at 1-800-TREU-SYS. Thank you for your time. This presentation is provided for informational purposes and does not constitute professional advice.",
                 chartId: null // No chart on the contact slide
             }
         ];
@@ -574,8 +580,10 @@
 
             // Stop any currently playing audio
             if (currentAudio) {
-                currentAudio.pause();
-                currentAudio.currentTime = 0;
+                try {
+                    currentAudio.pause();
+                    currentAudio.currentTime = 0;
+                } catch (e) { /* ignore */ }
             }
 
             // Clear auto-advance timer immediately on manual navigation or new slide display
@@ -640,26 +648,33 @@
 
         /**
          * Generates and plays audio for a given slide.
-         * @returns {Promise<number>} - Resolves with audio duration in seconds, or 0 if no audio.
+         * Priority order:
+         *   1) If an external TTS API key is provided (injected into window.__external_tts_key),
+         *      attempt the external TTS endpoint (Google Generative TTS or similar).
+         *   2) If external TTS is unavailable or fails, fall back to browser SpeechSynthesis.
+         *
+         * Returns: Promise<number> resolving to audio duration in seconds (0 if audio not played).
          */
         async function playSlideAudio(slide) {
-            const slideText = `${slide.title}. ${Array.isArray(slide.content) ? slide.content.join('. ') : slide.content || ''}`;
+            const slideText = `${slide.title}. ${Array.isArray(slide.content) ? slide.content.join('. ') : slide.content || ''}`.trim();
             let audioUrl = null;
             let audioDuration = 0; // Default to 0
 
+            // If we previously cached a generated audio URL for this exact text, reuse it
             if (audioCache.has(slideText)) {
                 audioUrl = audioCache.get(slideText);
-            } else {
-                showLoading();
-                const maxRetries = 5;
-                let retryCount = 0;
+            }
 
-                while (retryCount < maxRetries) {
+            // Try external TTS if no cached audio and a key is provided
+            const externalKey = typeof window.__external_tts_key !== 'undefined' ? window.__external_tts_key : '';
+            if (!audioUrl && externalKey) {
+                showLoading();
+                const maxRetries = 3;
+                let attempt = 0;
+                while (attempt < maxRetries) {
                     try {
                         const payload = {
-                            contents: [{
-                                parts: [{ text: slideText }]
-                            }],
+                            contents: [{ parts: [{ text: slideText }] }],
                             generationConfig: {
                                 responseModalities: ["AUDIO"],
                                 speechConfig: {
@@ -670,8 +685,7 @@
                             },
                             model: "gemini-2.5-flash-preview-tts"
                         };
-                        const apiKey = ""; // Leave as-is, Canvas will provide it
-                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${externalKey}`;
 
                         const response = await fetch(apiUrl, {
                             method: 'POST',
@@ -680,14 +694,14 @@
                         });
 
                         if (!response.ok) {
-                            if (response.status === 429) { // Too Many Requests
-                                const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-                                console.warn(`Rate limit hit. Retrying in ${delay / 1000} seconds...`);
-                                await new Promise(resolve => setTimeout(resolve, delay));
-                                retryCount++;
-                                continue; // Retry the request
+                            if (response.status === 429) {
+                                // Exponential backoff for rate limits
+                                const delay = Math.pow(2, attempt) * 1000;
+                                await new Promise(r => setTimeout(r, delay));
+                                attempt++;
+                                continue;
                             }
-                            throw new Error(`HTTP error! status: ${response.status}`);
+                            throw new Error(`External TTS HTTP error: ${response.status}`);
                         }
 
                         const result = await response.json();
@@ -696,37 +710,33 @@
                         const mimeType = part?.inlineData?.mimeType;
 
                         if (audioData && mimeType && mimeType.startsWith("audio/L16")) {
-                            // Extract sample rate from mimeType, e.g., "audio/L16;rate=16000"
                             const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000; // Default to 16kHz if not found
-
+                            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
                             const wavBlob = pcmToWav(audioData, sampleRate);
                             audioUrl = URL.createObjectURL(wavBlob);
-                            audioCache.set(slideText, audioUrl); // Cache the URL
-                            break; // Success, exit loop
+                            audioCache.set(slideText, audioUrl);
+                            break; // success
                         } else {
-                            console.error("Invalid audio data or mime type received:", result);
-                            throw new Error("Failed to receive valid audio data.");
+                            throw new Error("External TTS returned unexpected audio format or empty data.");
                         }
-                    } catch (error) {
-                        console.error("Error generating audio:", error);
-                        if (retryCount < maxRetries - 1) {
-                            const delay = Math.pow(2, retryCount) * 1000;
-                            console.warn(`Attempt ${retryCount + 1} failed. Retrying in ${delay / 1000} seconds...`);
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            retryCount++;
+                    } catch (err) {
+                        console.warn("External TTS attempt failed:", err);
+                        attempt++;
+                        if (attempt >= maxRetries) {
+                            // Give up external attempts and fall back
+                            console.warn("External TTS failed after retries; falling back to browser TTS.");
                         } else {
-                            console.error("Max retries reached. Could not generate audio.");
-                            break; // Exit loop after max retries
+                            // small backoff before next try
+                            await new Promise(r => setTimeout(r, 500 * attempt));
                         }
                     }
                 }
                 hideLoading();
             }
 
+            // If we have a blob URL from external TTS, play it
             if (audioUrl) {
                 currentAudio = new Audio(audioUrl);
-                // When audio ends, trigger auto-advance if autoplay is active
                 currentAudio.onended = () => {
                     if (isAutoPlaying) {
                         autoAdvance();
@@ -734,16 +744,69 @@
                 };
                 try {
                     await currentAudio.play();
-                    audioDuration = currentAudio.duration; // Get actual duration after play
+                    audioDuration = currentAudio.duration || 0;
                 } catch (e) {
-                    console.error("Audio playback failed:", e);
-                    audioDuration = 0; // Indicate audio failed to play
+                    console.error("Audio playback failed for external TTS:", e);
+                    audioDuration = 0;
                 }
-            } else {
-                console.warn("Audio could not be generated for this slide.");
-                audioDuration = 0; // Indicate no audio
+                return audioDuration;
             }
-            return audioDuration; // Return the duration for the timer
+
+            // FALLBACK: Use browser SpeechSynthesis when available (no external key or external failed)
+            if (typeof window.speechSynthesis !== 'undefined') {
+                return new Promise((resolve) => {
+                    try {
+                        window.speechSynthesis.cancel(); // stop any existing utterances
+                    } catch (e) { /* ignore */ }
+
+                    const utter = new SpeechSynthesisUtterance(slideText);
+                    utter.lang = 'en-US';
+                    utter.rate = 1.0;
+                    utter.pitch = 1.0;
+
+                    const start = Date.now();
+                    utter.onend = () => {
+                        const durationSec = (Date.now() - start) / 1000;
+                        resolve(durationSec);
+                    };
+                    utter.onerror = (ev) => {
+                        console.error("SpeechSynthesis error:", ev);
+                        resolve(0);
+                    };
+
+                    // Ensure voices are loaded on some browsers
+                    const speakNow = () => {
+                        try {
+                            window.speechSynthesis.speak(utter);
+                        } catch (err) {
+                            console.warn("speechSynthesis.speak failed:", err);
+                            resolve(0);
+                        }
+                    };
+
+                    if (speechSynthesis.getVoices().length > 0) {
+                        speakNow();
+                    } else {
+                        // wait briefly for voices to load
+                        let handled = false;
+                        const onVoicesChanged = () => {
+                            if (handled) return;
+                            handled = true;
+                            speakNow();
+                        };
+                        speechSynthesis.addEventListener('voiceschanged', onVoicesChanged);
+                        setTimeout(() => {
+                            if (!handled) {
+                                handled = true;
+                                speakNow();
+                            }
+                        }, 250);
+                    }
+                });
+            }
+
+            // No audio mechanism available
+            return 0;
         }
 
         function showLoading() {
@@ -784,7 +847,7 @@
 
         // --- Initialize on load ---
         window.onload = async function() {
-            await initializeFirebase(); // Initialize Firebase first
+            await initializeFirebase(); // Initialize Firebase first (if config provided)
             // Initial state: show start button, hide presentation content
             startButtonContainer.classList.remove('hidden');
             presentationContent.classList.add('hidden');
